@@ -6,7 +6,10 @@ class Attribute:
 
     def modify(self, amount: int):
         """Изменяет значение характеристики (но не ниже 0 и не выше 100)"""
-        self.value = max(0, min(100, self.value + amount))
+        self.value = max(0, min(20, self.value + amount))
+
+    def __str__(self):
+        return f"{self.__class__.__name__}: {self.value}"
 
 
 @dataclass

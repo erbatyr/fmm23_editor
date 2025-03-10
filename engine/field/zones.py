@@ -1,22 +1,25 @@
-from enum import Enum, auto
+from enum import Enum
+from dataclasses import dataclass
 
-class FieldZone(Enum):
-    DEFENSE_LEFT = auto()
-    DEFENSE_CENTER = auto()
-    DEFENSE_RIGHT = auto()
 
-    AFTER_DEFENSE_LEFT = auto()
-    AFTER_DEFENSE_CENTER = auto()
-    AFTER_DEFENSE_RIGHT = auto()
+class Side(Enum):
+    LEFT = "Left"
+    CENTER = "Center"
+    RIGHT = "Right"
 
-    CENTER_LEFT = auto()
-    CENTER_CENTER = auto()
-    CENTER_RIGHT = auto()
 
-    PRE_ATTACK_LEFT = auto()
-    PRE_ATTACK_CENTER = auto()
-    PRE_ATTACK_RIGHT = auto()
+class ZoneType(Enum):
+    ATTACK = "Attack Zone"
+    PRE_ATTACK = "Pre-Attack Zone"
+    CENTER = "Center Zone"
+    AFTER_DEFENSE = "After-Defense Zone"
+    DEFENSE = "Defense Zone"
 
-    ATTACK_LEFT = auto()
-    ATTACK_CENTER = auto()
-    ATTACK_RIGHT = auto()
+
+@dataclass(frozen=True)
+class FieldZone:
+    zone_type: ZoneType
+    side: Side
+
+    def __str__(self):
+        return f"{self.zone_type.value} - {self.side.value}"

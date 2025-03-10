@@ -1,6 +1,13 @@
 from enum import Enum
 
 
+class PositionGroup(Enum):
+    GOALKEEPER = "Goalkeeper"
+    DEFENDER = "Defender"
+    MIDFIELDER = 'Midfielder'
+    FORWARD = 'Forward'
+
+
 class Position(Enum):
     GOALKEEPER = "GK"
     RIGHT_BACK = "RB"
@@ -25,12 +32,12 @@ class Position(Enum):
 
     def group(self):
         if self in {Position.GOALKEEPER}:
-            return "Goalkeeper"
+            return PositionGroup.GOALKEEPER
         elif self in {Position.RIGHT_BACK, Position.LEFT_BACK, Position.CENTER_BACK, Position.RIGHT_WING_BACK,
                       Position.LEFT_WING_BACK}:
-            return "Defender"
+            return PositionGroup.DEFENDER
         elif self in {Position.DEFENSIVE_MIDFIELDER, Position.CENTRAL_MIDFIELDER, Position.RIGHT_MIDFIELDER,
                       Position.LEFT_MIDFIELDER, Position.ATTACKING_MIDFIELDER}:
-            return "Midfielder"
+            return PositionGroup.MIDFIELDER
         else:
-            return "Forward"
+            return PositionGroup.FORWARD

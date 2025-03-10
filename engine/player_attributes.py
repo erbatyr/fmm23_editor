@@ -5,7 +5,7 @@ class Attribute:
     value: int
 
     def modify(self, amount: int):
-        """Изменяет значение характеристики (но не ниже 0 и не выше 100)"""
+        """Изменяет значение характеристики (но не ниже 0 и не выше 20)"""
         self.value = max(0, min(20, self.value + amount))
 
     def __str__(self):
@@ -22,6 +22,8 @@ class GKHandling(Attribute): pass
 class GKKicking(Attribute): pass
 @dataclass
 class GKReflexes(Attribute): pass
+@dataclass
+class GKThrowing(Attribute): pass
 
 @dataclass
 class Aerial(Attribute): pass

@@ -1,5 +1,6 @@
 from engine.field.zones import FieldZone
-from player import Player
+from engine.player import Player
+
 
 class Ball:
     def __init__(self, holder: Player = None, zone: FieldZone = None):

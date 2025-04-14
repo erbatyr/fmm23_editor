@@ -1,6 +1,8 @@
 from typing import List, Optional
-from player import Player  # Импортируй свой Player класс
-from positions import Position
+
+from engine.player import Player
+from engine.positions import Position
+
 
 class Team:
     def __init__(self, name: str, players: List[Player]):

@@ -1,8 +1,8 @@
-from typing import Type, Dict, List
+from typing import Dict, Type
 
+from engine.player_attributes import Attribute
+from engine.player_tactical_roles import TacticalRole
 from engine.positions import Position
-from player_tactical_roles import TacticalRole, Poacher
-from player_attributes import Attribute
 
 
 class Player:

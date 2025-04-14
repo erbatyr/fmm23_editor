@@ -1,14 +1,13 @@
-from engine.field.zones import ZoneType
-from engine.player_attributes import Attribute, Shooting, Movement, Pace, Positioning, Dribbling, Crossing, Technique, \
-    Decisions, Creativity, Passing, Tackling, Aggression, Stamina, Teamwork, Strength, Aerial, GKReflexes, GKHandling, \
-    GKCommunication, GKAgility
-
-from typing import List, Type
-from dataclasses import dataclass
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import List, Type
 
-from tactical_action import TacticalAction
+from engine.field.zones import ZoneType
+from engine.player_attributes import Attribute, GKReflexes, GKHandling, GKCommunication, GKAgility, Positioning, \
+    Tackling, Crossing, Pace, Stamina, Strength, Aerial, Decisions, Aggression, Teamwork, Passing, Creativity, \
+    Technique, Movement, Dribbling, Shooting
 from engine.positions import Position
+from engine.tactical_action import TacticalAction
 
 
 @dataclass

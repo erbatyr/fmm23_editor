@@ -16,10 +16,6 @@ class ZoneTracker:
         """Устанавливает стартовую зону для игрока (при старте матча)"""
         self._player_zones[player] = zone
 
-    def get_zone(self, player: Player) -> FieldZone:
-        """Возвращает текущую зону игрока"""
-        return self._player_zones.get(player)
-
     def move_player(self, player: Player, target_zone: FieldZone):
         """
         Перемещает игрока в новую зону. Позже сюда можно добавить механику скорости передвижения.
@@ -38,6 +34,15 @@ class ZoneTracker:
         for player, zone in self._player_zones.items():
             print(f"{player.full_name} находится в зоне: {zone}")
 
+    def update_player_zone(self, player: Player, new_zone: FieldZone):
+        self._player_zones[player] = new_zone
+
+    def get_player_zone(self, player: Player) -> FieldZone:
+        return self._player_zones.get(player)
+
+    @property
+    def player_zones(self):
+        return self._player_zones
 
 # # Пример — установка зон игрокам
 # zone_tracker = ZoneTracker()

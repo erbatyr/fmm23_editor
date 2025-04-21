@@ -1,78 +1,126 @@
 from typing import List, Optional
-from engine.field.zones import FieldZone, ZoneType, Side
-from engine.player import Player
+
 from engine.ball import Ball
+from engine.field.zone_tracking import ZoneTracker
+from engine.field.zones import FieldZone, ZoneType, Side
+from engine.match_context import MatchContext
+from engine.player import Player
+
 
 class ZoneAnalyzer:
-    def __init__(self, zones: List[FieldZone], ball: Optional[Ball] = None):
+    def __init__(
+        self,
+        zones: List[FieldZone],
+        match_context: MatchContext,
+        zone_tracker: ZoneTracker,
+        ball: Optional[Ball] = None
+    ):
         """
         Инициализация анализатора зон.
         :param zones: Список всех зон на поле.
-        :param ball: Мяч, чтобы учитывать его позицию (опционально).
+        :param match_context: Контекст матча для доступа к командам.
+        :param zone_tracker: Отслеживание зон игроков.
+        :param ball: Мяч для учёта его позиции (опционально).
         """
         self.zones = zones
+        self.match_context = match_context
+        self.zone_tracker = zone_tracker
         self.ball = ball
 
     def get_zone_by_type(self, zone_type: ZoneType, side: Side) -> Optional[FieldZone]:
         """
         Находит зону по типу и стороне.
-        :param zone_type: Тип зоны (например, ZoneType.ATTACK).
-        :param side: Сторона зоны (например, Side.RIGHT).
-        :return: FieldZone или None, если зона не найдена.
         """
         for zone in self.zones:
             if zone.zone_type == zone_type and zone.side == side:
                 return zone
         return None
 
+    def count_opponents_in_zone(self, player: Player, zone: FieldZone) -> int:
+        """
+        Подсчитывает количество соперников в заданной зоне.
+        :param player: Игрок, для которого проверяем.
+        :param zone: Зона для анализа.
+        :return: Число соперников.
+        """
+        opponent_team = self.match_context.get_opposing_team(player)
+        count = 0
+        for opponent in opponent_team.players:
+            opponent_zone = self.zone_tracker.get_player_zone(opponent)
+            if opponent_zone == zone:
+                count += 1
+        return count
+
+    def find_least_crowded_zone(self, player: Player, zone_type: ZoneType) -> Optional[FieldZone]:
+        """
+        Находит зону заданного типа с наименьшим количеством соперников.
+        :param player: Игрок, для которого ищем зону.
+        :param zone_type: Тип зоны (например, ZoneType.ATTACK).
+        :return: Зона с минимумом соперников или None.
+        """
+        possible_zones = [
+            zone for zone in self.zones if zone.zone_type == zone_type
+        ]
+        if not possible_zones:
+            return None
+
+        # Сортируем зоны по количеству соперников
+        zone_counts = [
+            (zone, self.count_opponents_in_zone(player, zone))
+            for zone in possible_zones
+        ]
+        zone_counts.sort(key=lambda x: x[1])  # Сортировка по числу соперников
+        return zone_counts[0][0] if zone_counts else None
+
     def analyze(self, player: Player, current_zone: FieldZone) -> FieldZone:
         """
-        Анализирует ситуацию и возвращает целевую зону для игрока.
-        :param player: Игрок, для которого выбирается зона.
-        :param current_zone: Текущая зона игрока.
-        :return: Целевая FieldZone.
+        Анализирует ситуацию и возвращает целевую зону для игрока с учётом соперников.
         """
         role_name = player.tactical_role.name
+        opponent_team = self.match_context.get_opposing_team(player)
 
-        # Логика для разных ролей
         if role_name == "Goalkeeper":
-            # Вратарь всегда стремится к зоне защиты
+            # Вратарь игнорирует соперников, остаётся в воротах
             return self.get_zone_by_type(ZoneType.DEFENSE, current_zone.side) or current_zone
+
         elif role_name == "Central Defender":
-            # Защитник возвращается в оборону или остаётся там
+            # Защитник ищет нападающих в зоне Defense или After-Defense
+            for opponent in opponent_team.players:
+                opponent_zone = self.zone_tracker.get_player_zone(opponent)
+                if opponent_zone and opponent_zone.zone_type in [ZoneType.DEFENSE, ZoneType.AFTER_DEFENSE]:
+                    return opponent_zone  # Следовать за нападающим
             return self.get_zone_by_type(ZoneType.DEFENSE, current_zone.side) or current_zone
+
         elif role_name == "Full-Back":
-            # Фулл-бэк идёт в атаку, если мяч в атакующей зоне, иначе в оборону
+            # Фулл-бэк идёт в атаку, если мяч в атаке и мало соперников
             if self.ball and self.ball.zone and self.ball.zone.zone_type in [ZoneType.ATTACK, ZoneType.PRE_ATTACK]:
-                return self.get_zone_by_type(ZoneType.PRE_ATTACK, current_zone.side) or current_zone
+                target_zone = self.get_zone_by_type(ZoneType.PRE_ATTACK, current_zone.side)
+                if target_zone and self.count_opponents_in_zone(player, target_zone) < 2:
+                    return target_zone
             return self.get_zone_by_type(ZoneType.AFTER_DEFENSE, current_zone.side) or current_zone
+
         elif role_name == "Ball Winning Midfielder":
-            # Полузащитник стремится к центру или к мячу
+            # Полузащитник бежит к мячу или в зону с минимумом соперников
             if self.ball and self.ball.zone:
-                return self.ball.zone
-            return self.get_zone_by_type(ZoneType.CENTER, current_zone.side) or current_zone
+                ball_zone = self.ball.zone
+                if self.count_opponents_in_zone(player, ball_zone) <= 2:
+                    return ball_zone
+            return self.find_least_crowded_zone(player, ZoneType.CENTER) or current_zone
+
         elif role_name == "Advanced Playmaker":
-            # Плеймейкер ищет пространство в зоне перед атакой
-            return self.get_zone_by_type(ZoneType.PRE_ATTACK, current_zone.side) or current_zone
+            # Плеймейкер ищет свободную зону перед атакой
+            target_zone = self.find_least_crowded_zone(player, ZoneType.PRE_ATTACK)
+            return target_zone or self.get_zone_by_type(ZoneType.PRE_ATTACK, current_zone.side) or current_zone
+
         elif role_name == "Winger":
-            # Вингер бежит в атаку по флангу
-            return self.get_zone_by_type(ZoneType.ATTACK, current_zone.side) or current_zone
+            # Вингер ищет свободную зону атаки
+            target_zone = self.find_least_crowded_zone(player, ZoneType.ATTACK)
+            return target_zone or self.get_zone_by_type(ZoneType.ATTACK, current_zone.side) or current_zone
+
         elif role_name == "Poacher":
-            # Форвард ищет зону атаки
-            return self.get_zone_by_type(ZoneType.ATTACK, current_zone.side) or current_zone
+            # Форвард ищет зону атаки с минимумом защитников
+            target_zone = self.find_least_crowded_zone(player, ZoneType.ATTACK)
+            return target_zone or self.get_zone_by_type(ZoneType.ATTACK, current_zone.side) or current_zone
 
-        # По умолчанию возвращаем текущую зону
+        # По умолчанию — текущая зона
         return current_zone
-
-    def get_nearest_zone(self, current_zone: FieldZone, target_type: ZoneType) -> Optional[FieldZone]:
-        """
-        Находит ближайшую зону заданного типа (для будущих механик).
-        :param current_zone: Текущая зона.
-        :param target_type: Желаемый тип зоны.
-        :return: Ближайшая FieldZone или None.
-        """
-        # Простая реализация: ищем первую подходящую зону
-        for zone in self.zones:
-            if zone.zone_type == target_type:
-                return zone
-        return None

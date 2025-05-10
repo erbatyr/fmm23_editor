@@ -3,7 +3,9 @@ from typing import List, Optional
 from engine.ball import Ball
 from engine.field.zone_tracking import ZoneTracker
 from engine.field.zones import FieldZone, ZoneType, Side
-from engine.match_context import MatchContext
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from engine.match_context import MatchContext
 from engine.player import Player
 
 
@@ -11,7 +13,7 @@ class ZoneAnalyzer:
     def __init__(
         self,
         zones: List[FieldZone],
-        match_context: MatchContext,
+        match_context: "MatchContext",
         zone_tracker: ZoneTracker,
         ball: Optional[Ball] = None
     ):
@@ -105,22 +107,67 @@ class ZoneAnalyzer:
                 ball_zone = self.ball.zone
                 if self.count_opponents_in_zone(player, ball_zone) <= 2:
                     return ball_zone
-            return self.find_least_crowded_zone(player, ZoneType.CENTER) or current_zone
+            return self.find_lowest_pressure_zone(player, ZoneType.CENTER) or current_zone
 
         elif role_name == "Advanced Playmaker":
             # Плеймейкер ищет свободную зону перед атакой
-            target_zone = self.find_least_crowded_zone(player, ZoneType.PRE_ATTACK)
+            target_zone = self.find_lowest_pressure_zone(player, ZoneType.PRE_ATTACK)
             return target_zone or self.get_zone_by_type(ZoneType.PRE_ATTACK, current_zone.side) or current_zone
 
         elif role_name == "Winger":
             # Вингер ищет свободную зону атаки
-            target_zone = self.find_least_crowded_zone(player, ZoneType.ATTACK)
+            target_zone = self.find_lowest_pressure_zone(player, ZoneType.ATTACK)
             return target_zone or self.get_zone_by_type(ZoneType.ATTACK, current_zone.side) or current_zone
 
         elif role_name == "Poacher":
             # Форвард ищет зону атаки с минимумом защитников
-            target_zone = self.find_least_crowded_zone(player, ZoneType.ATTACK)
+            target_zone = self.find_lowest_pressure_zone(player, ZoneType.ATTACK)
             return target_zone or self.get_zone_by_type(ZoneType.ATTACK, current_zone.side) or current_zone
 
         # По умолчанию — текущая зона
         return current_zone
+
+    def count_teammates_in_zone(self, player: Player, zone: FieldZone) -> int:
+        """
+        Считает количество партнёров в заданной зоне.
+        """
+        team = self.match_context.get_team(player)
+        return sum(
+            1 for teammate in team.players
+            if teammate != player and self.zone_tracker.get_player_zone(teammate) == zone
+        )
+
+    def calculate_pressure(self, player: Player, zone: FieldZone) -> int:
+        """
+        Давление в зоне: соперники - партнёры.
+        Чем меньше значение, тем легче зоне.
+        """
+        opponents = self.count_opponents_in_zone(player, zone)
+        teammates = self.count_teammates_in_zone(player, zone)
+        return opponents - teammates
+
+    def find_lowest_pressure_zone(self, player: Player, zone_type: ZoneType) -> Optional[FieldZone]:
+        """
+        Находит зону заданного типа с наименьшим давлением.
+        """
+        possible_zones = [z for z in self.zones if z.zone_type == zone_type]
+        if not possible_zones:
+            return None
+
+        zone_pressures = [
+            (zone, self.calculate_pressure(player, zone)) for zone in possible_zones
+        ]
+        zone_pressures.sort(key=lambda x: x[1])  # Чем ниже давление, тем лучше
+        return zone_pressures[0][0]
+
+
+    def zone_pressure(self, zone: FieldZone) -> float:
+        team_a_count = sum(1 for p in self.match_context.team_a.players if self.zone_tracker.get_player_zone(p) == zone)
+        team_b_count = sum(1 for p in self.match_context.team_b.players if self.zone_tracker.get_player_zone(p) == zone)
+
+        total = team_a_count + team_b_count
+        if total == 0:
+            return 0.0
+
+        # Давление — это плотность игроков в зоне
+        return min(1.0, total / 6)  # например, 6 игроков = максимум давления

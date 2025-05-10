@@ -8,6 +8,7 @@ from engine.player_attributes import Attribute, GKReflexes, GKHandling, GKCommun
     Technique, Movement, Dribbling, Shooting
 from engine.positions import Position
 from engine.tactical_action import TacticalAction
+from engine.utils.passing import find_best_pass_target
 
 
 @dataclass
@@ -17,7 +18,7 @@ class TacticalRole(ABC):
     key_attributes: List[Type[Attribute]]
 
     @abstractmethod
-    def behave(self, player, zone_analyzer, current_zone) -> TacticalAction:
+    def behave(self, player, context, zone_analyzer, current_zone) -> TacticalAction:
         pass
 
 
@@ -29,11 +30,13 @@ class Goalkeeper(TacticalRole):
             key_attributes=[GKReflexes, GKHandling, GKCommunication, GKAgility, Positioning]
         )
 
-    def behave(self, player, zone_analyzer, current_zone) -> TacticalAction:
-        if current_zone.zone_type == ZoneType.DEFENSE:
-            return TacticalAction("hold", comment="контролирует мяч и анализирует розыгрыш")
-        target_zone = zone_analyzer.get_zone_by_type(ZoneType.DEFENSE, current_zone.side)
-        return TacticalAction("move", target_zone=target_zone, comment="возвращается в ворота")
+    def behave(self, player, context, zone_analyzer, current_zone) -> TacticalAction:
+        if context.ball.holder == player:
+            target = find_best_pass_target(player, context)
+            if target:
+                return TacticalAction("pass", target_player=target, comment="начинает атаку пасом")
+            return TacticalAction("hold", comment="ждёт вариантов для розыгрыша")
+        return TacticalAction("move", target_zone=zone_analyzer.get_zone_by_type(ZoneType.DEFENSE, current_zone.side), comment="возвращается в ворота")
 
 
 class FullBack(TacticalRole):
@@ -44,11 +47,16 @@ class FullBack(TacticalRole):
             key_attributes=[Tackling, Positioning, Crossing, Pace, Stamina]
         )
 
-    def behave(self, player, zone_analyzer, current_zone) -> TacticalAction:
-        if current_zone.zone_type == ZoneType.PRE_ATTACK:
-            return TacticalAction("cross", comment="готовит навес в штрафную")
-        target_zone = zone_analyzer.get_zone_by_type(ZoneType.PRE_ATTACK, current_zone.side)
-        return TacticalAction("move", target_zone=target_zone, comment="подключается к атаке")
+    def behave(self, player, context, zone_analyzer, current_zone) -> TacticalAction:
+        if context.ball.holder == player:
+            if current_zone.zone_type == ZoneType.PRE_ATTACK:
+                return TacticalAction("cross", comment="навешивает в штрафную")
+            target = find_best_pass_target(player, context)
+            if target:
+                return TacticalAction("pass", target_player=target, comment="пасует вдоль фланга")
+            return TacticalAction("hold", comment="не решается на пас")
+        else:
+            return TacticalAction("move", target_zone=zone_analyzer.get_zone_by_type(ZoneType.AFTER_DEFENSE, current_zone.side), comment="держит фланг")
 
 
 class CentralDefender(TacticalRole):
@@ -59,11 +67,16 @@ class CentralDefender(TacticalRole):
             key_attributes=[Tackling, Strength, Aerial, Positioning, Decisions]
         )
 
-    def behave(self, player, zone_analyzer, current_zone) -> TacticalAction:
-        if current_zone.zone_type == ZoneType.DEFENSE:
-            return TacticalAction("tackle", comment="прессингует нападающего")
-        target_zone = zone_analyzer.get_zone_by_type(ZoneType.DEFENSE, current_zone.side)
-        return TacticalAction("move", target_zone=target_zone, comment="возвращается на позицию в обороне")
+    def behave(self, player, context, zone_analyzer, current_zone) -> TacticalAction:
+        if context.ball.holder == player:
+            target = find_best_pass_target(player, context)
+            if target:
+                return TacticalAction("pass", target_player=target, comment="пас на ближнего")
+            return TacticalAction("hold", comment="не нашёл продолжения")
+        elif current_zone.zone_type != ZoneType.DEFENSE:
+            return TacticalAction("move", target_zone=zone_analyzer.get_zone_by_type(ZoneType.DEFENSE, current_zone.side), comment="возвращается в линию обороны")
+        return TacticalAction("tackle", comment="прессингует нападающего")
+
 
 
 class BallWinningMidfielder(TacticalRole):
@@ -74,11 +87,15 @@ class BallWinningMidfielder(TacticalRole):
             key_attributes=[Tackling, Aggression, Stamina, Decisions, Teamwork]
         )
 
-    def behave(self, player, zone_analyzer, current_zone) -> TacticalAction:
-        if current_zone.zone_type in [ZoneType.CENTER, ZoneType.AFTER_DEFENSE]:
+    def behave(self, player, context, zone_analyzer, current_zone) -> TacticalAction:
+        if context.ball.holder == player:
+            target = find_best_pass_target(player, context)
+            if target:
+                return TacticalAction("pass", target_player=target, comment="быстро отдаёт после отбора")
+            return TacticalAction("hold", comment="ждёт партнёров")
+        elif current_zone.zone_type in [ZoneType.CENTER, ZoneType.AFTER_DEFENSE]:
             return TacticalAction("tackle", comment="агрессивно вступает в отбор")
-        target_zone = zone_analyzer.get_zone_by_type(ZoneType.CENTER, current_zone.side)
-        return TacticalAction("move", target_zone=target_zone, comment="перемещается ближе к мячу")
+        return TacticalAction("move", target_zone=zone_analyzer.get_zone_by_type(ZoneType.CENTER, current_zone.side), comment="сжимает пространство")
 
 
 class AdvancedPlaymaker(TacticalRole):
@@ -89,11 +106,13 @@ class AdvancedPlaymaker(TacticalRole):
             key_attributes=[Passing, Creativity, Decisions, Technique]
         )
 
-    def behave(self, player, zone_analyzer, current_zone) -> TacticalAction:
-        if current_zone.zone_type == ZoneType.PRE_ATTACK:
-            return TacticalAction("pass", comment="разыгрывает комбинацию")
-        target_zone = zone_analyzer.get_zone_by_type(ZoneType.PRE_ATTACK, current_zone.side)
-        return TacticalAction("move", target_zone=target_zone, comment="ищет пространство между линиями")
+    def behave(self, player, context, zone_analyzer, current_zone) -> TacticalAction:
+        if context.ball.holder == player:
+            target = find_best_pass_target(player, context)
+            if target:
+                return TacticalAction("pass", target_player=target, comment="отдаёт разрезающий пас")
+            return TacticalAction("dribble", comment="берёт инициативу на себя")
+        return TacticalAction("move", target_zone=zone_analyzer.get_zone_by_type(ZoneType.PRE_ATTACK, current_zone.side), comment="ищет пространство между линиями")
 
 
 class Winger(TacticalRole):
@@ -104,11 +123,15 @@ class Winger(TacticalRole):
             key_attributes=[Dribbling, Crossing, Pace, Technique, Movement]
         )
 
-    def behave(self, player, zone_analyzer, current_zone) -> TacticalAction:
-        if current_zone.zone_type == ZoneType.ATTACK:
-            return TacticalAction("dribble", comment="на скорости обходит защитника")
-        target_zone = zone_analyzer.get_zone_by_type(ZoneType.ATTACK, current_zone.side)
-        return TacticalAction("move", target_zone=target_zone, comment="открывается по флангу")
+    def behave(self, player, context, zone_analyzer, current_zone) -> TacticalAction:
+        if context.ball.holder == player:
+            if current_zone.zone_type == ZoneType.ATTACK:
+                return TacticalAction("dribble", comment="пытается обыграть фланг")
+            target = find_best_pass_target(player, context)
+            if target:
+                return TacticalAction("pass", target_player=target, comment="передача вдоль фланга")
+            return TacticalAction("hold", comment="замедляет темп")
+        return TacticalAction("move", target_zone=zone_analyzer.get_zone_by_type(ZoneType.PRE_ATTACK, current_zone.side), comment="ждёт передачу")
 
 
 class Poacher(TacticalRole):
@@ -119,8 +142,13 @@ class Poacher(TacticalRole):
             key_attributes=[Shooting, Movement, Positioning, Pace, Technique]
         )
 
-    def behave(self, player, zone_analyzer, current_zone) -> TacticalAction:
-        if current_zone.zone_type == ZoneType.ATTACK:
-            return TacticalAction("shoot", comment="готов нанести удар по воротам")
-        target_zone = zone_analyzer.get_zone_by_type(ZoneType.ATTACK, current_zone.side)
-        return TacticalAction("move", target_zone=target_zone, comment="ищет свободную зону для рывка")
+    def behave(self, player, context, zone_analyzer, current_zone) -> TacticalAction:
+        if context.ball.holder == player:
+            if current_zone.zone_type == ZoneType.ATTACK:
+                return TacticalAction("shoot", comment="наносит удар по воротам")
+            target = find_best_pass_target(player, context)
+            if target:
+                return TacticalAction("pass", target_player=target, comment="отпасовывает назад")
+            return TacticalAction("hold", comment="не видит вариантов")
+        return TacticalAction("move", target_zone=zone_analyzer.get_zone_by_type(ZoneType.ATTACK, current_zone.side), comment="ищет момент для рывка")
+

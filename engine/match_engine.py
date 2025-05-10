@@ -12,6 +12,16 @@ class MatchEngine:
         self.context = context
         self.zone_tracker = zone_tracker
         self.tick_count = 0
+        self.score = {
+            self.context.team_a.name: 0,
+            self.context.team_b.name: 0
+        }
+
+    def run_match(self, ticks=10):
+        for _ in range(ticks):
+            self.tick()
+        print("\n🎯 Match finished!")
+        print(f"Score: {self.score}")
 
     def tick(self):
         """Один игровой шаг/момент (tick)"""
@@ -22,9 +32,10 @@ class MatchEngine:
         current_zone = self.zone_tracker.get_player_zone(player_with_ball)
 
         action = player_with_ball.tactical_role.behave(
-            player_with_ball,
-            self.context.zone_analyzer,
-            current_zone
+            player=player_with_ball,
+            context=self.context,
+            zone_analyzer=self.context.zone_analyzer,
+            current_zone=current_zone
         )
 
         print(f"{player_with_ball.full_name} performs action: {action}")
@@ -53,8 +64,6 @@ class MatchEngine:
             print(f"{player.full_name} holds the ball and waits.")
 
     def _resolve_zone_move(self, player, action: TacticalAction):
-        # Простейшее определение — переместить игрока в target_zone
-        # Можно позже сделать сложную карту перемещений
         if isinstance(action.target_zone, FieldZone):
             return action.target_zone
         else:
@@ -62,7 +71,7 @@ class MatchEngine:
 
     def _process_pass(self, player):
         teammates = [p for p in self.context.all_players if p != player]
-        target = teammates[0]  # позже добавить выбор логически
+        target = teammates[0]
         self.context.ball.holder = target
         print(f"{player.full_name} passes to {target.full_name}")
 
@@ -74,6 +83,7 @@ class MatchEngine:
 
         if random() > save_chance:
             print(f"⚽️ GOAL by {player.full_name}!")
+            self.score[self.context.get_team(player).name] += 1
         else:
             print(f"🧤 SAVE by {target_goalkeeper.full_name}!")
             self.context.ball.holder = target_goalkeeper
@@ -92,6 +102,6 @@ class MatchEngine:
 
     def _process_cross(self, player):
         teammates = [p for p in self.context.all_players if p != player]
-        target = teammates[0]  # заменить логикой выбора
+        target = teammates[0]
         self.context.ball.holder = target
         print(f"{player.full_name} sends a cross to {target.full_name}")

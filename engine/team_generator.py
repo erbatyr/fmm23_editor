@@ -5,7 +5,7 @@ from engine.player import Player
 from engine.player_attributes import *
 from engine.player_tactical_roles import *
 from engine.positions import Position
-
+from engine.team import Team
 
 # Примитивный список ролей и сопоставление с позициями
 ROLE_POOL = {
@@ -69,7 +69,7 @@ def generate_random_attributes(key_attributes: List[Type[Attribute]], position: 
 
 
 
-def generate_team(team_name: str) -> List[Player]:
+def generate_team(team_name: str) -> Team:
     team = []
     for i, position in enumerate(DEFAULT_FORMATION):
         role = ROLE_POOL.get(position)
@@ -82,11 +82,9 @@ def generate_team(team_name: str) -> List[Player]:
             tactical_role=role
         )
         team.append(player)
-    return team
+    return Team(team_name, team)
 
 
-team_a = generate_team("TeamA")
-team_b = generate_team("TeamB")
-
-for player in team_a:
-    print(player)
+class TeamGenerator:
+    def generate_team(self, name: str) -> Team:
+        return generate_team(name)

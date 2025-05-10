@@ -1,7 +1,7 @@
 from itertools import product
 
 from engine.ball import Ball
-from engine.field.zone_analyzer import ZoneAnalyzer
+from engine.field.zone_analysis import ZoneAnalyzer
 from engine.field.zones import FieldZone, ZoneType, Side
 from engine.player import Player
 from engine.player_attributes import Pace
